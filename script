@@ -76,6 +76,8 @@ local HITBOX_METHOD  = 1
 local HITBOX_METHODS = {"Torso","Head","Head+Torso","Root Part"}
 
 local hookActive = false
+
+-- Strategy 1: hookmetamethod (Synapse X, ScriptWare, Fluxus)
 pcall(function()
     if not hookmetamethod or not getnamecallmethod then return end
     local old
@@ -91,6 +93,75 @@ pcall(function()
     end)
     hookActive = true
 end)
+
+-- Strategy 2: raw metatable hook (Delta, Wave, and most UNC-compliant executors)
+-- Works by replacing __namecall on game's metatable directly.
+-- Only runs if Strategy 1 didn't work.
+if not hookActive then
+    pcall(function()
+        if not getrawmetatable or not setreadonly then return end
+        local mt = getrawmetatable(game)
+        if not mt then return end
+        local oldNC = mt.__namecall
+        if not oldNC then return end
+        setreadonly(mt, false)
+        mt.__namecall = newcclosure and newcclosure(function(self, ...)
+            -- On Delta, the method name is the last arg passed before varargs,
+            -- OR we can grab it from the __namecall string key on self.
+            -- Most UNC executors store the method as an upvalue; we detect it
+            -- by checking if self is a RemoteEvent and args[1] is a string.
+            local args = {...}
+            -- Detect FireServer calls: self is a RemoteEvent/Function
+            -- We identify the method by checking if it's callable on self
+            -- Delta passes method name as a hidden upvalue — we compare self.
+            local isSolo = rawequal(self, Solo)
+            local isDuo  = Duo and rawequal(self, Duo)
+            if isSolo then
+                if looseFightBlocked and args[1] == "LooseFight" then return end
+                if beatDownBlocked  and args[1] == "BeatDown"   then return end
+            end
+            if isDuo and duoBlocked then return end
+            return oldNC(self, ...)
+        end) or function(self, ...)
+            local args = {...}
+            local isSolo = rawequal(self, Solo)
+            local isDuo  = Duo and rawequal(self, Duo)
+            if isSolo then
+                if looseFightBlocked and args[1] == "LooseFight" then return end
+                if beatDownBlocked  and args[1] == "BeatDown"   then return end
+            end
+            if isDuo and duoBlocked then return end
+            return oldNC(self, ...)
+        end
+        setreadonly(mt, true)
+        hookActive = true
+    end)
+end
+
+-- Strategy 3: __index intercept on the remotes themselves (fallback for any executor)
+-- Wraps FireServer on Solo and Duo directly so the block still works
+-- even if neither metatable approach is available.
+if not hookActive then
+    pcall(function()
+        -- Wrap Solo:FireServer
+        local origSoloFS = Solo.FireServer
+        Solo.FireServer = function(self, ...)
+            local args = {...}
+            if looseFightBlocked and args[1] == "LooseFight" then return end
+            if beatDownBlocked  and args[1] == "BeatDown"   then return end
+            return origSoloFS(self, ...)
+        end
+        -- Wrap Duo:FireServer if it exists
+        if Duo then
+            local origDuoFS = Duo.FireServer
+            Duo.FireServer = function(self, ...)
+                if duoBlocked then return end
+                return origDuoFS(self, ...)
+            end
+        end
+        hookActive = true
+    end)
+end
 
 local function getTorso(char)
     return char:FindFirstChild("Torso") or char:FindFirstChild("UpperTorso") or char:FindFirstChild("HumanoidRootPart")
@@ -683,7 +754,7 @@ local function buildFeatureRow(feat,y,content)
             task.delay(0.3,function() TweenService:Create(dot,TW_DOT,{Size=UDim2.new(0,8,0,8),Position=UDim2.new(0,12,0.5,-4)}):Play() end)
         else feat.onDeactivate() end
         TweenService:Create(dg,TW_DOT,{BackgroundColor3=feat.state and C_ON or C_OFF,BackgroundTransparency=feat.state and 0.65 or 0.88}):Play()
-        TweenService:Create(kl,TW_ROW,{TextColor3=feat.mode=="hold" and C_KEY_HLD or C_KEY}):Play()
+        TweenService:Create(kl,TW_ROW,{TextColor3=C_KEY}):Play()
         if atualizarGUI then atualizarGUI() end
     end
     row.InputBegan:Connect(function(i)
@@ -837,9 +908,9 @@ local function buildMobileUI()
                 loadstring(game:HttpGet("https://gitlab.com/upio/cobalt/-/releases/permalink/latest/downloads/Cobalt.luau"))()
             end)
             if ok then
-                mCob.Text="\u2713 Cobalt Loaded"; mCob.TextColor3=C_ON
+                mCob.Text="✓ Cobalt Loaded"; mCob.TextColor3=C_ON
             else
-                mCob.Text="\u274c Failed"; mCob.TextColor3=C_OFF; warn("[Cobalt]",err)
+                mCob.Text="X Failed"; mCob.TextColor3=C_OFF; warn("[Cobalt]",err)
             end
         end)
     end)
