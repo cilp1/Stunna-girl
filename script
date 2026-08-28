@@ -336,7 +336,7 @@ local function blockActivate()
         while true do
             pcall(function() if IsolatedBlock then IsolatedBlock:FireServer() end end)
             pcall(function() local t=getBlockTrack(); if t then t:Play() end end)
-            task.wait(2.5)
+            task.wait(2.0)
         end
     end)
 end
