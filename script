@@ -1,29 +1,3 @@
--- ── WHITELIST GATE ─────────────────────────────
-local WHITELIST_RAW = "https://pastebin.com/raw/RzrYUjBd"
-
-do
-    local Players = game:GetService("Players")
-    local player  = Players.LocalPlayer
-
-    local ok, raw = pcall(function() return game:HttpGet(WHITELIST_RAW, true) end)
-    local whitelisted = false
-
-    if ok and raw then
-        for line in raw:gmatch("[^\r\n]+") do
-            if line:match("^%s*(.-)%s*$"):lower() == player.Name:lower() then
-                whitelisted = true
-                break
-            end
-        end
-    end
-
-    if not whitelisted then
-        player:Kick("you are not a Gi")
-        return
-    end
-end
--- ── END WHITELIST GATE ─────────────────────────
-
 pcall(function()
     loadstring(game:HttpGet("https://raw.githubusercontent.com/Pixeluted/adoniscries/main/Source.lua", true))()
 end)
