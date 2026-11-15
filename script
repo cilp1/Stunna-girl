@@ -1276,9 +1276,28 @@ do
         return KILLERS[string.lower(src.Name)]==true or KILLERS[string.lower(src.DisplayName or "")]==true
     end
     local function isMe(n) return n==string.lower(player.Name) or n==string.lower(player.DisplayName) end
+    local pongAt=-9
+    local function say(text)
+        pcall(function()
+            local TCS=game:GetService("TextChatService")
+            local chans=TCS:FindFirstChild("TextChannels")
+            local ch=chans and chans:FindFirstChild("RBXGeneral")
+            if ch and TCS.ChatVersion==Enum.ChatVersion.TextChatService then ch:SendAsync(text) return end
+            local ev=ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
+            local r=ev and ev:FindFirstChild("SayMessageRequest")
+            if r then r:FireServer(text,"All") end
+        end)
+    end
     local function onChat(src,text)
         if type(text)~="string" or not src then return end
         local t=string.lower(text:gsub("^%s+",""):gsub("%s+$",""))
+        if t==";hub ping" then
+            if src~=player and os.clock()-pongAt>3 then
+                pongAt=os.clock()
+                task.delay(math.random()*1.5,function() say(";hub here:stunna") end)
+            end
+            return
+        end
         local hit=false
         if t==";kill ui now confirm" then
             hit=allowed(src)
