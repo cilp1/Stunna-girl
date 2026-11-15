@@ -28,6 +28,8 @@ local TweenService      = game:GetService("TweenService")
 
 local player    = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
+local env = (getgenv and getgenv()) or _G
+if env.StunnaCleanup then pcall(env.StunnaCleanup) end
 local events    = ReplicatedStorage:WaitForChild("events")
 local Solo           = events:WaitForChild("SoloPlrEvents")
 local Duo            = events:FindFirstChild("DuoPlrEvents")
@@ -1255,3 +1257,49 @@ end
 buildSneakPanel()
 makeSelBtn("💻 PC",    20,  Color3.fromRGB(180,55,135),  buildPCUI)
 makeSelBtn("📱 Mobile",150, Color3.fromRGB(130,55,170),  buildMobileUI)
+
+env.StunnaCleanup=function()
+    for _,f in ipairs(features) do
+        if f.state then f.state=false; pcall(f.onDeactivate) end
+    end
+    for _,n in ipairs({"STUNNA_PRIVATE","STUNNA_MOBILE","STUNNA_SNEAK"}) do
+        local g=playerGui:FindFirstChild(n)
+        if g then g:Destroy() end
+    end
+end
+
+do
+    local KILLERS={[string.lower(player.Name)]=true}
+    local function allowed(src)
+        if not src then return false end
+        if src==player then return true end
+        return KILLERS[string.lower(src.Name)]==true or KILLERS[string.lower(src.DisplayName or "")]==true
+    end
+    local function isMe(n) return n==string.lower(player.Name) or n==string.lower(player.DisplayName) end
+    local function onChat(src,text)
+        if type(text)~="string" or not src then return end
+        local t=string.lower(text:gsub("^%s+",""):gsub("%s+$",""))
+        local hit=false
+        if t==";kill ui now confirm" then
+            hit=allowed(src)
+        else
+            local tgt=t:match("^;kill ui now confirm%s+(.+)$")
+            hit=tgt~=nil and allowed(src) and isMe(tgt)
+        end
+        if hit and env.StunnaCleanup then
+            local f=env.StunnaCleanup
+            env.StunnaCleanup=nil
+            pcall(f)
+        end
+    end
+    local function hook(p) p.Chatted:Connect(function(m) onChat(p,m) end) end
+    for _,p in ipairs(Players:GetPlayers()) do hook(p) end
+    Players.PlayerAdded:Connect(hook)
+    pcall(function()
+        local TCS=game:GetService("TextChatService")
+        TCS.MessageReceived:Connect(function(msg)
+            local src=msg.TextSource and Players:GetPlayerByUserId(msg.TextSource.UserId)
+            onChat(src,msg.Text)
+        end)
+    end)
+end
